@@ -18,6 +18,8 @@ class PennActionData(object):
         self.base_dir = base_dir
         assert self.base_dir[-1] == '/'
         self.file = file
+        self.data = self.__load(file)
+        self.data_len = self.__load(file)['nframes']
 
     # private mat-file loading function
     def __load(self, file):
@@ -25,27 +27,30 @@ class PennActionData(object):
         return loadmat(file)
 
     def getJointsData(self):
-        data = self.__load(self.file)
         import pandas as pd
-        columns = lambda a: [str(a) + str(i+1) for i in range(data['x'].shape[1])]
-        df = pd.concat([pd.DataFrame(data['x'], columns = columns('x')),
-                            pd.DataFrame(data['y'], columns = columns('y')),
-                            pd.DataFrame(data['visibility'], columns = ["visibility" + str(i+1) for i in range(data['y'].shape[1])])],
+        columns = lambda a: [str(a) + str(i+1) for i in range(self.data['x'].shape[1])]
+        df = pd.concat([pd.DataFrame(self.data['x'], columns = columns('x')),
+                            pd.DataFrame(self.data['y'], columns = columns('y')),
+                            pd.DataFrame(self.data['visibility'], columns = ["visibility" + str(i+1) for i in range(self.data['y'].shape[1])])],
                             axis = 1)
 
         return df
 
     def get_random_training_set(self, seq_len, batch_size):
+
+        """Get Random sequence because want to train
+            the model invariant of the starting frame.
+        """
+
         import torch
         import random
-        data = self.getJointsData()
-        data_len = len(data)
+        Jointsdata = self.getJointsData()
         X_train = []
         y_train = []
         for batch_index in range(batch_size):
-            start_index = random.randint(0, data_len - seq_len)
+            start_index = random.randint(0, self.data_len - seq_len)
             end_index = start_index + seq_len + 1
-            chunk = data[start_index:end_index].values
+            chunk = Jointsdata[start_index:end_index].values
             X_train.append(chunk[:-1])
             y_train.append(chunk[1:])
         X_train = Variable(torch.LongTensor(X_train))
@@ -58,5 +63,5 @@ class PennActionData(object):
 
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
-    x, y = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat').get_random_training_set(16, 32)
-    print(x.shape)
+    data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat')
+    print(data_stream.data_len)
