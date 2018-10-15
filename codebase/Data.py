@@ -19,7 +19,7 @@ class PennActionData(object):
         assert self.base_dir[-1] == '/'
         self.file = file
         self.data = self.__load(file)
-        self.data_len = self.__load(file)['nframes']
+        self.data_len = self.__load(file)['nframes'][0,0]
 
     # private mat-file loading function
     def __load(self, file):
@@ -33,14 +33,14 @@ class PennActionData(object):
                             pd.DataFrame(self.data['y'], columns = columns('y')),
                             pd.DataFrame(self.data['visibility'], columns = ["visibility" + str(i+1) for i in range(self.data['y'].shape[1])])],
                             axis = 1)
-
+        del self.data
         return df
 
     def get_random_training_set(self, seq_len, batch_size):
 
-        """Get Random sequence because want to train
+        ''' Get Random sequence because want to train
             the model invariant of the starting frame.
-        """
+        '''
 
         import torch
         import random
@@ -61,7 +61,29 @@ class PennActionData(object):
             y_train = y_train.cuda()
         return X_train, y_train
 
+    def get_sequence_dict(self, seq_length):
+        import torch
+        Jointsdata = self.getJointsData()
+        from collections import defaultdict
+        dict = defaultdict(lambda: [])
+        for i in range(self.data_len):
+            sequence = []
+            j = i
+            n_frames = 0
+            while n_frames != seq_length:
+                if j != self.data_len:
+                    sequence.append(Jointsdata[j:j+1].values.flatten())
+                    n_frames += 1
+                    j = i + ((self.data_len - 1)//2)
+                if j == self.data_len:
+                    sequence.append(Jointsdata[j-1:j].values.flatten())
+                    n_frames += 1
+            dict[i] = sequence
+        return dict
+
+
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
     data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat')
     print(data_stream.data_len)
+    print(data_stream.get_sequence_dict(16)[0])
