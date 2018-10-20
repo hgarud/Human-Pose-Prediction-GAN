@@ -53,8 +53,8 @@ class PennActionData(object):
             chunk = Jointsdata[start_index:end_index].values
             X_train.append(chunk[:-1])
             y_train.append(chunk[1:])
-        X_train = Variable(torch.LongTensor(X_train))
-        y_train = Variable(torch.LongTensor(y_train))
+        X_train = Variable(torch.Tensor(X_train))
+        y_train = Variable(torch.Tensor(y_train))
         cuda = True
         if cuda:
             X_train = X_train.cuda()
@@ -78,7 +78,7 @@ class PennActionData(object):
                 if j == self.data_len:
                     sequence.append(Jointsdata[j-1:j].values.flatten())
                     n_frames += 1
-            dict[i] = sequence
+            dict[i] = np.array(sequence)
         return dict
 
 
