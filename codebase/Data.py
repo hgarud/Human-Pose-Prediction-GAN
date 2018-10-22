@@ -38,9 +38,9 @@ class PennActionData(object):
 
     def get_random_training_set(self, seq_len, batch_size):
 
-        ''' Get Random sequence because want to train
+        """ Get Random sequence because want to train
             the model invariant of the starting frame.
-        '''
+        """
 
         import torch
         import random

@@ -6,12 +6,12 @@ from Models import PoseLSTM
 from tqdm import tqdm
 import torch
 
-'''
+"""
 Set baselines for the prediction task
 * LSTM
 * HMM-GMM
 * R-GAN
-'''
+"""
 
 # device = torch.device('cuda')
 
