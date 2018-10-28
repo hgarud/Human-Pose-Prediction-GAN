@@ -62,6 +62,22 @@ class PennActionData(object):
         return X_train, y_train
 
     def get_sequence_dict(self, seq_length):
+
+        """
+        A short description.
+
+        A bit longer description.
+
+        Args:
+            variable (type): description
+
+        Returns:
+            type: description
+
+        Raises:
+            Exception: description
+
+        """
         import torch
         Jointsdata = self.getJointsData()
         from collections import defaultdict
@@ -71,14 +87,17 @@ class PennActionData(object):
             j = i
             n_frames = 0
             while n_frames != seq_length:
-                if j != self.data_len:
+                if j < self.data_len:
                     sequence.append(Jointsdata[j:j+1].values.flatten())
                     n_frames += 1
-                    j = i + ((self.data_len - 1)//2)
-                if j == self.data_len:
+                    j = j + ((self.data_len - 1)//15)
+                elif j == self.data_len:
                     sequence.append(Jointsdata[j-1:j].values.flatten())
                     n_frames += 1
-            dict[i] = np.array(sequence)
+                elif j > self.data_len:
+                    sequence.append(Jointsdata[-1:].values.flatten())
+                    n_frames += 1
+            dict[i] = np.array(sequence, dtype = np.float16)
         return dict
 
 
