@@ -16,16 +16,17 @@ Set baselines for the prediction task
 # device = torch.device('cuda')
 
 # Model Hyper-Parameters
-hidden_dim = 26
+hidden_dim = 128
 batch_size = 1
 output_dim = 39
 num_layers = 1
 seq_length = 16
 input_dim = 39
-n_epochs = 5
+n_epochs = 20
 
-data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat')
+data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0129.mat')
 data_len = data_stream.data_len
+print(data_len)
 sequences = data_stream.get_sequence_dict(seq_length = seq_length)
 # sequences
 # LSTM
@@ -33,9 +34,10 @@ model = PoseLSTM(input_dim = input_dim, hidden_dim = hidden_dim,
                 batch_size = batch_size, output_dim = output_dim, num_layers = num_layers)
 # Initialise hidden state
 model.hidden = model.init_hidden()
+# model.double().cuda()
 model.cuda()
 loss_fn = nn.MSELoss()
-optimizer = optim.SGD(model.parameters(), lr = 1e-5)
+optimizer = optim.SGD(model.parameters(), lr = 1e-8)
 
 # try:
 print("Training for {} epochs...".format(n_epochs))
@@ -52,12 +54,15 @@ for epoch in tqdm(range(1, n_epochs + 1)):
         sequence = torch.from_numpy(sequence).float()
         sequence = sequence.cuda()
         sequence = sequence.view((batch_size, -1, input_dim))
-
         # Forward pass
         y_pred = model.forward(sequence[:,:-1])
+        # print("Complete Sequence shape: ", sequence.shape)
+        # print("Training Sequence shape: ", sequence[:,:-1].shape)
+        # print("Target Sequence shape: ", sequence[:,1:].shape)
 
         # Calculate Loss
         loss = loss_fn(y_pred, sequence[:,1:])
+        print(loss.item())
 
         # Backward and optimize
         optimizer.zero_grad()
