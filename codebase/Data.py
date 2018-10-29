@@ -105,4 +105,7 @@ if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
     data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat')
     print(data_stream.data_len)
-    print(data_stream.get_sequence_dict(16)[0])
+    sequences = data_stream.get_sequence_dict(16)
+    rand_key = np.random.randint(low = 0, high = 663)
+    x_test = sequences.get(rand_key, sequences.get(0))
+    print(len(x_test[:-1][0]), len(x_test[:-1]))
