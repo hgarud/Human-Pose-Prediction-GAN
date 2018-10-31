@@ -26,13 +26,18 @@ class PennActionData(object):
         file = self.base_dir + file
         return loadmat(file)
 
-    def getJointsData(self):
+    def getJointsData(self, withVisibility=True):
         import pandas as pd
         columns = lambda a: [str(a) + str(i+1) for i in range(self.data['x'].shape[1])]
-        df = pd.concat([pd.DataFrame(self.data['x'], columns = columns('x')),
-                            pd.DataFrame(self.data['y'], columns = columns('y')),
-                            pd.DataFrame(self.data['visibility'], columns = ["visibility" + str(i+1) for i in range(self.data['y'].shape[1])])],
-                            axis = 1)
+        if withVisibility:
+            df = pd.concat([pd.DataFrame(self.data['x'], columns = columns('x')),
+                                pd.DataFrame(self.data['y'], columns = columns('y')),
+                                pd.DataFrame(self.data['visibility'], columns = ["visibility" + str(i+1) for i in range(self.data['y'].shape[1])])],
+                                axis = 1)
+        else:
+            df = pd.concat([pd.DataFrame(self.data['x'], columns = columns('x')),
+                                pd.DataFrame(self.data['y'], columns = columns('y'))],
+                                axis = 1)
         del self.data
         return df
 
@@ -61,7 +66,7 @@ class PennActionData(object):
             y_train = y_train.cuda()
         return X_train, y_train
 
-    def get_sequence_dict(self, seq_length):
+    def get_sequence_dict(self, seq_length, withVisibility=True):
 
         """
         A short description.
@@ -79,7 +84,7 @@ class PennActionData(object):
 
         """
         import torch
-        Jointsdata = self.getJointsData()
+        Jointsdata = self.getJointsData(withVisibility)
         from collections import defaultdict
         dict = defaultdict(lambda: [])
         for i in range(self.data_len):
@@ -105,7 +110,7 @@ if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
     data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat')
     print(data_stream.data_len)
-    sequences = data_stream.get_sequence_dict(16)
+    sequences = data_stream.get_sequence_dict(16, withVisibility=False)
     rand_key = np.random.randint(low = 0, high = 663)
     x_test = sequences.get(rand_key, sequences.get(0))
     print(len(x_test[:-1][0]), len(x_test[:-1]))
