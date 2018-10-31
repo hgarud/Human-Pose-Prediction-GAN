@@ -41,12 +41,11 @@ class PennActionData(object):
         del self.data
         return df
 
-    def get_random_training_set(self, seq_len, batch_size):
+    def getRandomTrainingSet(self, seq_len, batch_size):
 
         """ Get Random sequence because want to train
             the model invariant of the starting frame.
         """
-
         import torch
         import random
         Jointsdata = self.getJointsData()
@@ -66,27 +65,30 @@ class PennActionData(object):
             y_train = y_train.cuda()
         return X_train, y_train
 
-    def get_sequence_dict(self, seq_length, withVisibility=True):
+    def getSequences(self, seq_length, withVisibility=True):
 
         """
-        A short description.
+        For a file with K frames, we generate K sequences by varying
+        the starting frame. We skip frames when generating sequencessince adjacent
+        frames containsimilar poses. The number of frames skipped is video-dependent:
+        Given a sampled starting frame, we always generate a sequence of length 16,
+        where we skip every (K − 1) = 15 frames in the raw sequence after the sampled starting frame.
 
-        A bit longer description.
+        Note:
+            Once we surpass the end frame, we will repeat the last frame collected
+            until we obtain 16 frames. This is to force the forecasting to learn to
+            “stop” and remain at the ending pose once an action has completed.
 
         Args:
-            variable (type): description
+            seq_length (int): Number of time steps to unroll the LSTM network.
 
         Returns:
-            type: description
-
-        Raises:
-            Exception: description
-
+            2-D Numpy array: Sequences with varying starting frame
+            Output shape: (Total number of frames x Sequence length x Input dimension)
         """
         import torch
         Jointsdata = self.getJointsData(withVisibility)
-        from collections import defaultdict
-        dict = defaultdict(lambda: [])
+        dict = np.zeros((self.data_len, seq_length, Jointsdata.shape[1]))
         for i in range(self.data_len):
             sequence = []
             j = i
@@ -102,7 +104,7 @@ class PennActionData(object):
                 elif j > self.data_len:
                     sequence.append(Jointsdata[-1:].values.flatten())
                     n_frames += 1
-            dict[i] = np.array(sequence, dtype = np.float16)
+            dict[i,:,:] = np.array(sequence, dtype = np.float16)
         return dict
 
 
@@ -110,7 +112,7 @@ if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
     data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat')
     print(data_stream.data_len)
-    sequences = data_stream.get_sequence_dict(16, withVisibility=False)
+    sequences = data_stream.getSequences(16, withVisibility=False)
     rand_key = np.random.randint(low = 0, high = 663)
-    x_test = sequences.get(rand_key, sequences.get(0))
-    print(len(x_test[:-1][0]), len(x_test[:-1]))
+    x_test = sequences[rand_key]
+    print(sequences.shape, x_test.shape)
