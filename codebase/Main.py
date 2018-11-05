@@ -13,21 +13,24 @@ Set baselines for the prediction task
 * R-GAN
 """
 
-# device = torch.device('cuda')
+device = torch.device('cuda')
 
 # Model Hyper-Parameters
 hidden_dim = 128
-batch_size = 1
+batch_size = 47
 output_dim = 39
 num_layers = 2
 seq_length = 16
-input_dim = 39
-n_epochs = 300
+n_epochs = 700
+alpha = 1e-3
 
 data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0129.mat')
 data_len = data_stream.data_len
 print(data_len)
-sequences = data_stream.get_sequence_dict(seq_length = seq_length)
+sequences = data_stream.getSequences(seq_length = seq_length, withVisibility = True)
+# sequences.cuda()
+
+input_dim = sequences.shape[-1]
 
 # LSTM
 model = PoseLSTM(input_dim = input_dim, hidden_dim = hidden_dim,
@@ -36,76 +39,111 @@ model = PoseLSTM(input_dim = input_dim, hidden_dim = hidden_dim,
 model.hidden = model.init_hidden()
 # model.double().cuda()
 model.cuda()
+# print(model.device())
 loss_fn = nn.MSELoss(reduction = 'elementwise_mean')
-optimizer = optim.SGD(model.parameters(), lr = 1e-4)
+optimizer = optim.SGD(model.parameters(), lr = alpha)
 
-# try:
-average_losses = []
-print("Training for {} epochs...".format(n_epochs))
-for epoch in tqdm(range(1, n_epochs + 1)):
-    # Clear stored gradient
-    model.zero_grad()
-    loss = 0
-    for _, sequence in sequences.items():
-        # Get Random Training Sequence
-        # X_train, y_train = data_stream.get_random_training_set(seq_len = seq_length, batch_size = batch_size)
-        # X_train.cuda()
+try:
+# average_losses = []
+    losses = []
+    print("Training for {} epochs...".format(n_epochs))
+    for epoch in tqdm(range(1, n_epochs + 1)):
+        # Clear stored gradient
+        model.zero_grad()
+        loss = 0
+        # for i in range(0, sequences.shape[1] - 1):
+            # Get Random Training Sequence
+            # X_train, y_train = data_stream.get_random_training_set(seq_len = seq_length, batch_size = batch_size)
+            # X_train.cuda()
+            # y_train.cuda()
+
+        X_train = torch.from_numpy(sequences[:,:-1,:]).float().to(device)
+        # X_train.to(device)
+        X_train = X_train.view((batch_size, -1, input_dim))
+            #
+        y_train = torch.from_numpy(sequences[:,1:,:]).float().to(device)
+        # y_train.to(device)
+        y_train = y_train.view((batch_size, -1, input_dim))
+            # # Forward pass
+            # y_pred = model.forward(X_train)
+        # sequences = torch.from_numpy(sequences).float()
+        # sequences.cuda()
+        # X_train = X_train.view((batch_size, -1, input_dim))
+
+        # y_train = torch.from_numpy(sequences[:,1:,:]).float()
         # y_train.cuda()
-
-        sequence = torch.from_numpy(sequence).float()
-        sequence = sequence.cuda()
-        sequence = sequence.view((batch_size, -1, input_dim))
+        # y_train = y_train.view((batch_size, -1, input_dim))
         # Forward pass
-        y_pred = model.forward(sequence[:,:-1])
+        y_pred = model.forward(X_train)
 
-        ## Sanity Checks :p
-        # print("Complete Sequence shape: ", sequence.shape)
-        # print("Training Sequence shape: ", sequence[:,:-1].shape)
-        # print("Target Sequence shape: ", sequence[:,1:].shape)
-        # print("Predicted Sequence shape: ", y_pred.shape)
+            ## Sanity Checks :p
+            # print("Complete Sequence shape: ", sequence.shape)
+            # print("Training Sequence shape: ", sequence[:,:-1].shape)
+            # print("Target Sequence shape: ", sequence[:,1:].shape)
+            # print("Predicted Sequence shape: ", y_pred.shape)
 
-        # Calculate Loss
-        loss = loss + loss_fn(y_pred, sequence[:,1:])
-    av_epoch_loss = loss.item()//seq_length
-    print("Average loss over {} sequences: {} @ epoch #{}".format(data_len, av_epoch_loss, epoch))
-    average_losses.append(av_epoch_loss)
-    # Backward and optimize
-    optimizer.zero_grad()
-    loss.backward(retain_graph = True)
-    optimizer.step()
-# except:
-#     print("Exiting")
+            # Calculate Loss
+            # loss = loss + loss_fn(y_pred, y_train)
+        loss = loss_fn(y_pred, y_train)
+        # av_epoch_loss = loss.item()//seq_length
+        # print("Average loss over {} sequences: {} @ epoch #{}".format(data_len, av_epoch_loss, epoch))
+        print("Loss over {} sequences: {} @ epoch #{}".format(data_len, loss, epoch))
+        # average_losses.append(av_epoch_loss)
+        losses.append(loss)
+        # Backward and optimize
+        optimizer.zero_grad()
+        loss.backward(retain_graph = True)
+        optimizer.step()
+except:
+    print("Exiting")
 
-# Save the model checkpoint
-checkpoint_file = "model_epoch" + str(n_epochs) + "_train_loss" + str(average_losses[-1]) + ".ckpt"
-torch.save(model.state_dict(), checkpoint_file)
-#
+    # Save the model checkpoint
+    checkpoint_file = "model_epoch" + str(epoch) + "_train_loss" + str(losses[-1]) + "_lr" + str(alpha) + ".ckpt"
+    torch.save(model.state_dict(), checkpoint_file)
+
+import matplotlib.pyplot as plt
+fig = plt.figure()
+plt.plot(losses, 'k')
+
 # checkpoint = torch.load('model.ckpt')
 # model.load_state_dict(checkpoint)
 
 # Test the model
+explained_variances = []
+r2s = []
+mses = []
 with torch.no_grad():
     from sklearn.metrics import explained_variance_score, r2_score, mean_squared_error
     # Get random training sample
-    rand_key = np.random.randint(low = 0, high = data_len)
-    x_test = sequences.get(rand_key, sequences.get(0))
-    sequence = torch.from_numpy(x_test).float()
-    sequence = sequence.cuda()
-    sequence = sequence.view((batch_size, -1, input_dim))
+    # rand_key = np.random.randint(low = 0, high = data_len)
+    # X_test = sequences[]
+    X_test = torch.from_numpy(sequences[:,:-1,:]).float().to(device)
+    # sequence = sequence.cuda()
+    X_test = X_test.view((batch_size, -1, input_dim))
+
+    y_test = torch.from_numpy(sequences[:,1:,:]).float().to(device)
+    y_test = y_test.view((batch_size, -1, input_dim))
     # Evaluate
-    y_pred = model.forward(sequence[:,:-1])
-    print(y_pred[0].shape)
-    explained_variance = explained_variance_score(x_test[1:], y_pred[0])
-    r2 = r2_score(x_test[1:], y_pred[0])
-    mse = mean_squared_error(x_test[1:], y_pred[0])
-    print("Prediction metrics for {}th training sample:\n".format(rand_key+1))
-    print("Explained Variance score: {}\n".format(explained_variance))
-    print("R2 score: {}\n".format(r2))
-    print("MSE: {}\n".format(mse))
+    y_pred = model.forward(X_test)
+    print(y_pred.shape)
+    # rand_key = np.random.randint(low = 0, high = data_len)
+
+    # for i in range(len(y_pred)):
+    #     explained_variances.append(explained_variance_score(y_test[i, :, :], y_pred[i, :, :]))
+    #     r2s.append(r2_score(y_test[i, :, :], y_pred[i, :, :]))
+    #     mses.append(mean_squared_error(y_test[i, :, :], y_pred[i, :, :]))
+
+    for i in range(seq_length-1):
+        explained_variances.append(explained_variance_score(y_test[:, i, :], y_pred[:, i, :]))
+        r2s.append(r2_score(y_test[:, i, :], y_pred[:, i, :]))
+        mses.append(mean_squared_error(y_test[:, i, :], y_pred[:, i, :]))
 
 # # Save the model checkpoint
 # torch.save(model.state_dict(), 'model.ckpt')
 
-import matplotlib.pyplot as plt
-plt.plot(average_losses)
+fig = plt.figure()
+# frames = linspace(1, seq_length)
+plt.plot(explained_variances, 'r')
+plt.plot(r2s, 'b')
+plt.plot(mses, 'g')
 plt.show()
