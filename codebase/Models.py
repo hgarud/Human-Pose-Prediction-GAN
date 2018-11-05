@@ -83,6 +83,8 @@ class DiscriminatorLSTM(PoseLSTM):
     The Discriminator base class for PoseRGAN.
     Inherits PoseLSTM because of same structure.
 
+    Reference: https://arxiv.org/pdf/1706.02633.pdf
+
     Args:
         input_dim (int): The number of expected features in the input
         hidden_dim (int): The desired number of features in the hidden state
@@ -150,14 +152,23 @@ class PoseRGAN(object):
         self.output_dim = output_dim
         self.num_layers = num_layers
 
+        self.netG = GeneratorLSTM()
+        self.netG.hidden = self.netG.init_hidden()
+        self.netG.cuda()
+
+        self.netD = DiscriminatorLSTM()
+        self.netD.hidden = self.netD.init_hidden()
+        self.netD.cuda()
+
+
     def init_normal_hidden(self, mu, sigma):
         # torch.nn.init.normal_(self.hidden.data, mu, sigma)
         raise NotImplementedError
 
-    def latent_space_sampler(self):
+    def sampleLatentSpace(self, batch_size, z_dim):
         raise NotImplementedError
 
 if __name__ == '__main__':
-    dLSTM = DiscriminatorLSTM()
+    dLSTM = DiscriminatorLSTM().cuda()
     dLSTM.hidden = dLSTM.init_hidden()
     # print(dLSTM.forward(torch.Tensor([1,2,3,4])))

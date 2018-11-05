@@ -18,19 +18,21 @@ device = torch.device('cuda')
 # Model Hyper-Parameters
 hidden_dim = 128
 batch_size = 47
-output_dim = 39
 num_layers = 2
 seq_length = 16
-n_epochs = 700
-alpha = 1e-3
+n_epochs = 300
+alpha = 1e-2
 
-data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0129.mat')
+data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0129.mat', scaling = 'standard')
 data_len = data_stream.data_len
 print(data_len)
-sequences = data_stream.getSequences(seq_length = seq_length, withVisibility = True)
+sequences = data_stream.getSequences(seq_length = seq_length, withVisibility = False)
 # sequences.cuda()
 
-input_dim = sequences.shape[-1]
+input_dim = sequences.shape[-1]         # 26 when withVisibility = False
+                                        # 39 when withVisibility = True
+
+output_dim = input_dim
 
 # LSTM
 model = PoseLSTM(input_dim = input_dim, hidden_dim = hidden_dim,
