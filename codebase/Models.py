@@ -3,11 +3,9 @@ import torch.nn as nn
 from torch.autograd import Variable
 
 class PoseLSTM(nn.Module):
-
     """
     This class returns an LSTM model instance for pose prediction.
     Also used as a base class for adversarial R-GAN
-
     """
 
     def __init__(self, input_dim = 39, hidden_dim = 26, batch_size = 32, output_dim = 39, num_layers =1):
@@ -62,7 +60,6 @@ class GeneratorLSTM(PoseLSTM):
         hidden_dim (int): The desired number of features in the hidden state
         num_layers (int): Number of recurrent layers.
             E.g., setting num_layers=2 would mean stacking two LSTMs together to form a stacked LSTM
-
     """
 
     # def __getattribute__(self, name):
@@ -90,7 +87,6 @@ class DiscriminatorLSTM(PoseLSTM):
         hidden_dim (int): The desired number of features in the hidden state
         num_layers (int): Number of recurrent layers.
             E.g., setting num_layers=2 would mean stacking two LSTMs together to form a stacked LSTM
-
     """
 
     # def __getattribute__(self, name):
@@ -115,16 +111,6 @@ class DiscriminatorCNN(nn.Module):
         Implements a 1-D convolutional operation over the sequence.
 
         Reference:  https://doi.org/10.1155/2018/4907423
-
-        Args:
-            variable (type): description
-
-        Returns:
-            type: description
-
-        Raises:
-            Exception: description
-
         """
         super(DiscriminatorCNN, self).__init__()
         raise NotImplementedError
@@ -159,7 +145,6 @@ class PoseRGAN(object):
         self.netD = DiscriminatorLSTM()
         self.netD.hidden = self.netD.init_hidden()
         self.netD.cuda()
-
 
     def init_normal_hidden(self, mu, sigma):
         # torch.nn.init.normal_(self.hidden.data, mu, sigma)

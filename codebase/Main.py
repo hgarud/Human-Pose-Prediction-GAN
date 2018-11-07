@@ -17,7 +17,6 @@ device = torch.device('cuda')
 
 # Model Hyper-Parameters
 hidden_dim = 128
-batch_size = 47
 num_layers = 2
 seq_length = 16
 n_epochs = 500
@@ -26,35 +25,34 @@ alpha = 1e-2
 data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0129.mat', scaling = 'standard')
 data_len = data_stream.data_len
 print(data_len)
-sequences = data_stream.getSequences(seq_length = seq_length, withVisibility = False)
-# sequences.cuda()
+sequences = data_stream.getStridedSequences(seq_length = seq_length, withVisibility = False)
+np.random.shuffle(sequences)
 
 input_dim = sequences.shape[-1]         # 26 when withVisibility = False
                                         # 39 when withVisibility = True
 
 output_dim = input_dim
+batch_size = sequences.shape[0]
 
 # LSTM
 model = PoseLSTM(input_dim = input_dim, hidden_dim = hidden_dim,
                 batch_size = batch_size, output_dim = output_dim, num_layers = num_layers)
+
 # Initialise hidden state
 model.hidden = model.init_hidden()
-# model.double().cuda()
 model.cuda()
-# print(model.device())
+
 loss_fn = nn.MSELoss(reduction = 'elementwise_mean')
 optimizer = optim.SGD(model.parameters(), lr = alpha)
 
 X_train = torch.from_numpy(sequences[:,:-1,:]).float().to(device)
-# X_train.to(device)
 X_train = X_train.view((batch_size, -1, input_dim))
-    #
+
 y_train = torch.from_numpy(sequences[:,1:,:]).float().to(device)
-# y_train.to(device)
 y_train = y_train.view((batch_size, -1, input_dim))
+
 loss = 0
 try:
-# average_losses = []
     losses = []
     print("Training for {} epochs...".format(n_epochs))
     for epoch in tqdm(range(1, n_epochs + 1)):
@@ -66,7 +64,7 @@ try:
         y_pred = model.forward(X_train)
 
         loss = loss_fn(y_pred, y_train)
-
+        losses.append(loss)
         print("Loss over {} sequences: {} @ epoch #{}".format(data_len, loss, epoch))
 
         # Backward and optimize
@@ -75,7 +73,6 @@ try:
         optimizer.step()
 except:
     print("Exiting")
-
     # Save the model checkpoint
     checkpoint_file = "model_epoch" + str(epoch) + "_train_loss" + str(losses[-1]) + "_lr" + str(alpha) + ".ckpt"
     torch.save(model.state_dict(), checkpoint_file)
@@ -85,8 +82,8 @@ checkpoint_file = "model_epoch" + str(epoch) + "_train_loss" + str(loss) + "_lr"
 torch.save(model.state_dict(), checkpoint_file)
 
 import matplotlib.pyplot as plt
-# fig = plt.figure()
-# plt.plot(losses, 'k')
+fig = plt.figure()
+plt.plot(losses, 'k')
 
 # Test the model
 explained_variances = []

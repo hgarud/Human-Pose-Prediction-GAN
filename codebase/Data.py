@@ -166,9 +166,27 @@ class PennActionData(object):
             dict[i,:,:] = np.array(sequence, dtype = np.float16)
         return dict
 
+    def getStridedSequences(self, seq_length, stride=1, withVisibility=True):
+        import torch
+        Jointsdata = self.getJointsData(withVisibility)
+        dict = np.zeros((self.data_len - seq_length, seq_length, Jointsdata.shape[1]))
+        print("Fetching Data...")
+        for i in tqdm(range(0, self.data_len - seq_length, stride)):
+            sequence = []
+            j = i
+            n_frames = 0
+            while n_frames != seq_length:
+                sequence.append(Jointsdata[j:j+1].values.flatten())
+                n_frames += 1
+            dict[i,:,:] = np.array(sequence, dtype = np.float16)
+        return dict
 
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
-    data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat', scaling = 'minmax')
+    data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat', scaling = 'standard')
     print(data_stream.data_len)
     print(np.std(data_stream.data['x'][:,0]))
+
+    continuousFrames = data_stream.getContinuousSequences(5, withVisibility=False)
+    print(continuousFrames.shape)
+    print(continuousFrames[-6:])
