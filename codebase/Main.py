@@ -19,7 +19,7 @@ device = torch.device('cuda')
 hidden_dim = 128
 num_layers = 2
 seq_length = 16
-n_epochs = 1500
+n_epochs = 2500
 alpha = 1e-2
 
 data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat', scaling = 'standard')
@@ -43,7 +43,8 @@ model.hidden = model.init_hidden()
 model.cuda()
 
 loss_fn = nn.MSELoss(reduction = 'elementwise_mean')
-optimizer = optim.SGD(model.parameters(), lr = alpha)
+optimizer = optim.SGD(model.parameters(), lr = alpha, momentum = 0.9)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer = optimizer, mode = 'min', factor = 0.5, verbose = True)
 
 X_train = torch.from_numpy(sequences[:,:-1,:]).float().to(device)
 X_train = X_train.view((batch_size, -1, input_dim))
@@ -70,6 +71,7 @@ try:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        scheduler.step(loss)
 except Exception as e:
     print("Exiting with exception: ", e)
     # Save the model checkpoint
