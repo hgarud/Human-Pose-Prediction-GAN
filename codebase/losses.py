@@ -1,3 +1,5 @@
+import torch.nn as nn
+
 """
 Custom Loss functions in addition to an adversarial loss for distinguishing real samples from fake.
 
@@ -37,11 +39,10 @@ class DirectionLoss(object):
             scalar: Returns absolute value of the difference in the direction taken by the
                   predicted value as opposed to the target value with respect
                   sto the training sequence.
-
         """
-        sign = lambda x: x and (1, -1)[x < 0]
-
-        return abs(sign(input - training_input) - sign(target - training_input))
+        # sign = lambda x: x and (1, -1)[x < 0]
+        import torch
+        return abs(torch.sign(input - training_input) - torch.sign(target - training_input))
 
 class PredictionLoss(object):
     # def __init__(self):
@@ -59,15 +60,17 @@ class PredictionLoss(object):
             norm (string): determines either an 'l1' or an 'l2' loss
 
         Returns:
-            scalar: Returns an L-1/L-2 prediction loss calculated on (T+1)th predicted value.
-
+            scalar: an L-1/L-2 prediction loss calculated on (T+1)th predicted value.
         """
-        assert norm in ['l1', 'l2']
+        # assert norm in ['l1', 'l2']
+        #
+        # if norm == 'l1':
+        #     return abs(target - input)
+        # else:
+        #     return (target - input)**2
 
-        if norm == 'l1':
-            return abs(target - input)
-        else:
-            return (target - input)**2
+        loss = nn.MSELoss(reduction = 'elementwise_mean')
+        return loss(input, target)
 
 class GeneratorLoss(object):
     def __init__(self, lambda_A=1e-4, lambda_P=1e-4, lambda_D=1e-4, norm='l2'):
@@ -82,8 +85,14 @@ class GeneratorLoss(object):
         self.sceLoss = nn.BCEWithLogitsLoss(reduction = 'elementwise_mean')
 
     def __call__(self, training_input, input, target):
-        return self.lambda_A*self.sceLossinput(input, target) + self.lambda_P*self.predLoss(input, target, norm = self.norm) + self.lambda_D*self.directionLoss(training_input, input, target)
+        return self.lambda_A*self.sceLoss(input, target) + self.lambda_P*self.predLoss.forward(input, target, norm = self.norm)# + self.lambda_D*self.directionLoss.forward(training_input, input, target)
 
+class DiscriminatorLoss(object):
+    def __call__(self, input, target):
+        import torch.nn as nn
+        sceLoss = nn.BCEWithLogitsLoss(reduction = 'elementwise_mean')
+        return sceLoss(input, target)
 
 if __name__ == '__main__':
     gLoss = GeneratorLoss()
+    dLoss = DiscriminatorLoss()
