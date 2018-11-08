@@ -19,10 +19,10 @@ device = torch.device('cuda')
 hidden_dim = 128
 num_layers = 2
 seq_length = 16
-n_epochs = 500
+n_epochs = 1500
 alpha = 1e-2
 
-data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0129.mat', scaling = 'standard')
+data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat', scaling = 'standard')
 data_len = data_stream.data_len
 print(data_len)
 sequences = data_stream.getStridedSequences(seq_length = seq_length, withVisibility = False)
@@ -55,30 +55,29 @@ loss = 0
 try:
     losses = []
     print("Training for {} epochs...".format(n_epochs))
-    for epoch in tqdm(range(1, n_epochs + 1)):
+    for epoch in range(1, n_epochs + 1):
         # Clear stored gradient
         model.zero_grad()
-        loss = 0
 
         # Forward pass
         y_pred = model.forward(X_train)
 
         loss = loss_fn(y_pred, y_train)
-        losses.append(loss)
-        print("Loss over {} sequences: {} @ epoch #{}".format(data_len, loss, epoch))
+        losses.append(loss.item())
+        print("Loss over {} sequences: {} @ epoch #{}".format(len(sequences), loss, epoch))
 
         # Backward and optimize
         optimizer.zero_grad()
-        loss.backward(retain_graph = True)
+        loss.backward()
         optimizer.step()
-except:
-    print("Exiting")
+except Exception as e:
+    print("Exiting with exception: ", e)
     # Save the model checkpoint
     checkpoint_file = "model_epoch" + str(epoch) + "_train_loss" + str(losses[-1]) + "_lr" + str(alpha) + ".ckpt"
     torch.save(model.state_dict(), checkpoint_file)
 
 # Save the model checkpoint
-checkpoint_file = "model_epoch" + str(epoch) + "_train_loss" + str(loss) + "_lr" + str(alpha) + ".ckpt"
+checkpoint_file = "LSTMmodel_epoch" + str(epoch) + "_train_loss" + str(losses[-1]) + "_lr" + str(alpha) + ".ckpt"
 torch.save(model.state_dict(), checkpoint_file)
 
 import matplotlib.pyplot as plt

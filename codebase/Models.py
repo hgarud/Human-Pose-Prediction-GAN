@@ -47,8 +47,15 @@ class PoseLSTM(nn.Module):
         """
         lstm_output, self.hidden = self.lstm(inputs, self.hidden)
         y_pred = self.decoder(lstm_output.view((self.batch_size, -1, self.hidden_dim)))
-        # y_pred = self.decoder(lstm_output[-1])
+        self.hidden = self.repackage_hidden()
         return y_pred.view((self.batch_size, -1, self.output_dim))
+
+    def repackage_hidden(self):
+        """
+        Wraps hidden states in new Variables, to detach them from their history.
+        Results in much faster training times and no memory leakage. :)
+        """
+        return tuple(Variable(var) for var in self.hidden)
 
 class GeneratorLSTM(PoseLSTM):
     """
@@ -138,11 +145,11 @@ class PoseRGAN(object):
         self.output_dim = output_dim
         self.num_layers = num_layers
 
-        self.netG = GeneratorLSTM()
+        self.netG = GeneratorLSTM(input_dim, hidden_dim, batch_size, output_dim, num_layers)
         self.netG.hidden = self.netG.init_hidden()
         self.netG.cuda()
 
-        self.netD = DiscriminatorLSTM()
+        self.netD = DiscriminatorLSTM(input_dim, hidden_dim, batch_size, output_dim, num_layers)
         self.netD.hidden = self.netD.init_hidden()
         self.netD.cuda()
 
