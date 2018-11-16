@@ -1,3 +1,6 @@
+import os
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 from scipy.io import loadmat
@@ -15,7 +18,7 @@ class MPIIData(object):
         return x
 
 class PennActionData(object):
-    def __init__(self, base_dir, file, scaling=None):
+    def __init__(self, base_dir, file=None, scaling=None):
         """
         Penn Action Dataset contains 2326 video sequences of 15 different actions
         and human joint annotation for each sequence.
@@ -52,9 +55,16 @@ class PennActionData(object):
         """
         self.base_dir = base_dir
         assert self.base_dir[-1] == '/'
-        self.file = file
-        self.data = self.__load(file, scaling)
-        self.data_len = self.data['nframes'][0,0]
+        if file == None:
+            self.data = self.__loadAll(scaling)
+            self.data_len = len(self.data['x'])
+        else:
+            self.file = file
+            self.data = self.__load(file, scaling)
+            self.data_len = self.data['nframes'][0,0]
+
+        print(type(self.data))
+        print(type(self.data['x']))
 
 
     def __load(self, file, scaling=None):
@@ -62,7 +72,7 @@ class PennActionData(object):
         Private MATLAB file loading function.
 
         Returns:
-            Numpy nd-array: Numpy array extracted from the MATLAB file.
+            Dictionary: Dictionary extracted from the MATLAB file.
         """
 
         import numpy as np
@@ -84,6 +94,40 @@ class PennActionData(object):
             min = np.amin(data['y'], axis = 0)
             data['y'] = (data['y'] - min[None,:]) / (max[None,:] - min[None,:])
             return data
+
+    def __loadAll(self, scaling=None):
+        """
+        Private loading function to load data from all MATLAB files.
+
+        Returns:
+            Numpy nd-array: Numpy array extracted from all MATLAB files.
+        """
+        files = os.listdir(self.base_dir)
+        all_data = defaultdict(lambda : np.empty((0,13)))
+        print("Fetching Data...")
+        for i in tqdm(range(len(files))):
+            data = self.__load(files[i])
+            all_data['x'] = np.concatenate((all_data['x'], data['x']))
+            all_data['y'] = np.concatenate((all_data['y'], data['y']))
+            all_data['visibility'] = np.concatenate((all_data['visibility'], data['visibility']))
+
+        if scaling == None:
+            return all_data
+        elif scaling == 'standard':
+            all_data['x'] = all_data['x'] - np.mean(all_data['x'], axis = 0)[None,:]
+            all_data['x'] = all_data['x'] / np.std(all_data['x'], axis = 0)[None,:]
+            all_data['y'] = all_data['y'] - np.mean(all_data['y'], axis = 0)[None,:]
+            all_data['y'] = all_data['y'] / np.std(all_data['y'], axis = 0)[None,:]
+            return all_data
+        elif scaling == 'minmax':
+            max = np.amax(all_data['x'], axis = 0)
+            min = np.amin(all_data['x'], axis = 0)
+            all_data['x'] = (all_data['x'] - min[None,:]) / (max[None,:] - min[None,:])
+            max = np.amax(all_data['y'], axis = 0)
+            min = np.amin(all_data['y'], axis = 0)
+            all_data['y'] = (all_data['y'] - min[None,:]) / (max[None,:] - min[None,:])
+            return all_data
+        return all_data
 
     def getJointsData(self, withVisibility=True):
         import pandas as pd
@@ -138,7 +182,8 @@ class PennActionData(object):
             “stop” and remain at the ending pose once an action has completed.
 
         Args:
-            seq_length (int): Number of time steps to unroll the LSTM network.
+            seq_length (int): Number of frames to consider in a sequence.
+                              Basically, the number of time steps to unroll the LSTM network.
 
         Returns:
             Numpy nd-array: Sequences with varying starting frame
@@ -147,7 +192,7 @@ class PennActionData(object):
         import torch
         Jointsdata = self.getJointsData(withVisibility)
         dict = np.zeros((self.data_len, seq_length, Jointsdata.shape[1]))
-        print("Fetching Data...")
+        print("Creating Sequences...")
         for i in tqdm(range(self.data_len)):
             sequence = []
             j = i
@@ -167,6 +212,20 @@ class PennActionData(object):
         return dict
 
     def getStridedSequences(self, seq_length, stride=1, withVisibility=True):
+        """
+        Create sequences of sequence length = seq_length using a strided sliding
+        window without skipping frames.
+        Gave better results than when intermediate frames were skipped.
+
+        Args:
+            seq_length (int): Number of frames to consider in a sequence.
+                              Basically, the number of time steps to unroll the LSTM network.
+
+        Returns:
+            Numpy nd-array: Sequences with varying starting frame
+            Output shape: (Total number of frames x Sequence length x Input dimension)
+        """
+
         import torch
         Jointsdata = self.getJointsData(withVisibility)
         dict = np.zeros((self.data_len - seq_length, seq_length, Jointsdata.shape[1]))
@@ -181,12 +240,11 @@ class PennActionData(object):
             dict[i,:,:] = np.array(sequence, dtype = np.float16)
         return dict
 
+    # def
+
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
-    data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat', scaling = 'standard')
-    print(data_stream.data_len)
-    print(np.std(data_stream.data['x'][:,0]))
-
-    continuousFrames = data_stream.getContinuousSequences(5, withVisibility=False)
-    print(continuousFrames.shape)
-    print(continuousFrames[-6:])
+    data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat', scaling = 'minmax')
+    sequences = data_stream.getStridedSequences(seq_length = seq_length, withVisibility = False)
+    print(sequences.shape)
+    np.save('All_16SL_26F_Sequences.npy', sequences)
