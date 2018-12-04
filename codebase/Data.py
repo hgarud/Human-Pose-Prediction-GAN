@@ -6,6 +6,8 @@ import pandas as pd
 from scipy.io import loadmat
 from torch.autograd import Variable
 from tqdm import tqdm
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.externals import joblib
 
 class MPIIData(object):
     def __init__(self, base_dir):
@@ -63,10 +65,6 @@ class PennActionData(object):
             self.data = self.__load(file, scaling)
             self.data_len = self.data['nframes'][0,0]
 
-        print(type(self.data))
-        print(type(self.data['x']))
-
-
     def __load(self, file, scaling=None):
         """
         Private MATLAB file loading function.
@@ -81,18 +79,25 @@ class PennActionData(object):
         if scaling == None:
             return data
         elif scaling == 'standard':
-            data['x'] = data['x'] - np.mean(data['x'], axis = 0)[None,:]
-            data['x'] = data['x'] / np.std(data['x'], axis = 0)[None,:]
-            data['y'] = data['y'] - np.mean(data['y'], axis = 0)[None,:]
-            data['y'] = data['y'] / np.std(data['y'], axis = 0)[None,:]
+            self.x_scaler = StandardScaler().fit(data['x'])
+            self.y_scaler = StandardScaler().fit(data['y'])
+            # vis_scaler = StandardScaler().fit(data['visibility'])
+
+            data['x'] = self.x_scaler.transform(data['x'])
+            data['y'] = self.y_scaler.transform(data['y'])
+            # data['visibility'] = vis_scaler.transform(data['visibility'])
+            # data['y'] = data['y'] / self.y_feature_std[None,:]
+
             return data
         elif scaling == 'minmax':
-            max = np.amax(data['x'], axis = 0)
-            min = np.amin(data['x'], axis = 0)
-            data['x'] = (data['x'] - min[None,:]) / (max[None,:] - min[None,:])
-            max = np.amax(data['y'], axis = 0)
-            min = np.amin(data['y'], axis = 0)
-            data['y'] = (data['y'] - min[None,:]) / (max[None,:] - min[None,:])
+            self.x_scaler = MinMaxScaler().fit(data['x'])
+            self.y_scaler = MinMaxScaler().fit(data['y'])
+            # vis_scaler = MinMaxScaler().fit(data['visibility'])
+
+            data['x'] = self.x_scaler.transform(data['x'])
+            data['y'] = self.y_scaler.transform(data['y'])
+            # data['visibility'] = vis_scaler.transform(data['visibility'])
+
             return data
 
     def __loadAll(self, scaling=None):
@@ -102,7 +107,7 @@ class PennActionData(object):
         Returns:
             Numpy nd-array: Numpy array extracted from all MATLAB files.
         """
-        files = os.listdir(self.base_dir)
+        files = sorted(os.listdir(self.base_dir))
         all_data = defaultdict(lambda : np.empty((0,13)))
         print("Fetching Data...")
         for i in tqdm(range(len(files))):
@@ -114,20 +119,34 @@ class PennActionData(object):
         if scaling == None:
             return all_data
         elif scaling == 'standard':
-            all_data['x'] = all_data['x'] - np.mean(all_data['x'], axis = 0)[None,:]
-            all_data['x'] = all_data['x'] / np.std(all_data['x'], axis = 0)[None,:]
-            all_data['y'] = all_data['y'] - np.mean(all_data['y'], axis = 0)[None,:]
-            all_data['y'] = all_data['y'] / np.std(all_data['y'], axis = 0)[None,:]
+            self.x_scaler = StandardScaler().fit(all_data['x'])
+            self.y_scaler = StandardScaler().fit(all_data['y'])
+            # vis_scaler = StandardScaler().fit(all_data['visibility'])
+
+            all_data['x'] = self.x_scaler.transform(all_data['x'])
+            all_data['y'] = self.y_scaler.transform(all_data['y'])
+            # all_data['visibility'] = vis_scaler.transform(all_data['visibility'])
+
             return all_data
         elif scaling == 'minmax':
-            max = np.amax(all_data['x'], axis = 0)
-            min = np.amin(all_data['x'], axis = 0)
-            all_data['x'] = (all_data['x'] - min[None,:]) / (max[None,:] - min[None,:])
-            max = np.amax(all_data['y'], axis = 0)
-            min = np.amin(all_data['y'], axis = 0)
-            all_data['y'] = (all_data['y'] - min[None,:]) / (max[None,:] - min[None,:])
+            self.x_scaler = MinMaxScaler().fit(all_data['x'])
+            self.y_scaler = MinMaxScaler().fit(all_data['y'])
+            # vis_scaler = MinMaxScaler().fit(all_data['visibility'])
+
+            all_data['x'] = self.x_scaler.transform(all_data['x'])
+            all_data['y'] = self.y_scaler.transform(all_data['y'])
+            # all_data['visibility'] = vis_scaler.transform(all_data['visibility'])
+
+            self.save_scalers()
+
             return all_data
         return all_data
+
+    def save_scalers(self):
+        x_scaler_file = "X_scaler.save"
+        Y_scaler_file = "Y_scaler.save"
+        joblib.dump(self.x_scaler, x_scaler_file)
+        joblib.dump(self.y_scaler, y_scaler_file)
 
     def getJointsData(self, withVisibility=True):
         import pandas as pd
@@ -229,7 +248,7 @@ class PennActionData(object):
         import torch
         Jointsdata = self.getJointsData(withVisibility)
         dict = np.zeros((self.data_len - seq_length, seq_length, Jointsdata.shape[1]))
-        print("Fetching Data...")
+        print("Creating sequences...")
         for i in tqdm(range(0, self.data_len - seq_length, stride)):
             sequence = []
             j = i
@@ -237,14 +256,18 @@ class PennActionData(object):
             while n_frames != seq_length:
                 sequence.append(Jointsdata[j:j+1].values.flatten())
                 n_frames += 1
+                j += 1
             dict[i,:,:] = np.array(sequence, dtype = np.float16)
         return dict
 
-    # def
+    # def inverse_transform(self, scaling='standard'):
+    #     print(self.)
 
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
-    data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat', scaling = 'minmax')
-    sequences = data_stream.getStridedSequences(seq_length = seq_length, withVisibility = False)
-    print(sequences.shape)
-    np.save('All_16SL_26F_Sequences.npy', sequences)
+    data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat', scaling = 'standard')
+    print(data_stream.data['x'].shape)
+    # sequences = data_stream.getStridedSequences(seq_length = 16, withVisibility = False)
+    # print(sequences.shape)
+    # np.save('All_16SL_26F_Sequences_Standard.npy', sequences)
+    # data_stream.visualize(sequences)
