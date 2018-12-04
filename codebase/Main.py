@@ -28,14 +28,14 @@ n_epochs = 200
 alpha = 1e-2
 
 # Load saved Numpy file
-sequences = np.load('All_16SL_26F_Sequences.npy')
+sequences = np.load('All_16SL_26F_Sequences_Standard.npy')
 data_len = len(sequences)
 print(sequences.shape)
 np.random.shuffle(sequences)
 
 # Train-Validation split
 train_size = 0.80
-split_index = math.ceil(data_len * train_size) # 122869 samples
+split_index = math.ceil(data_len * train_size) # 131060 samples
 train_sequences = sequences[0:split_index]
 validation_sequences = sequences[split_index:]
 
@@ -44,6 +44,7 @@ input_dim = sequences.shape[-1]         # 26 when withVisibility = False
                                         # 39 when withVisibility = True
 
 output_dim = input_dim
+
 batch_size = 6553
 total_train_steps = len(train_sequences)/batch_size
 total_valid_steps = len(validation_sequences)/batch_size
@@ -57,8 +58,8 @@ model.hidden = model.init_hidden()
 model.cuda()
 
 loss_fn = nn.MSELoss(reduction = 'elementwise_mean')
-optimizer = optim.SGD(model.parameters(), lr = alpha, momentum = 0.9)
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer = optimizer, mode = 'min', factor = 0.5, verbose = True)
+optimizer = optim.SGD(model.parameters(), lr = alpha, momentum = 0.9, weight_decay = 0.0001)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer = optimizer, mode = 'min', factor = 0.5, patience = 4, verbose = True)
 
 loss = 0
 train_losses = []
@@ -84,15 +85,15 @@ try:
             y_pred = model.forward(X_train)
 
             train_loss = loss_fn(y_pred, y_train)
+            # train_loss = train_loss / (seq_length - 1)
             mean_epoch_train_loss = mean_epoch_train_loss+ train_loss.item()
-            print("Loss over {} sequences: {} for step {}/{} @ epoch #{}".format(data_len, train_loss, (batch_index/batch_size) + 1, total_train_steps, epoch))
+            print("Loss over {} sequences: {} for step {}/{} @ epoch #{}/{}".format(data_len, train_loss, (batch_index/batch_size) + 1, total_train_steps, epoch, n_epochs))
 
             # Backward and optimize
             optimizer.zero_grad()
             train_loss.backward()
             optimizer.step()
         train_losses.append(mean_epoch_train_loss/total_train_steps)
-
         mean_epoch_valid_loss = 0
         mean_epoch_valid_r2 = 0
         mean_epoch_valid_mse = 0
@@ -107,14 +108,16 @@ try:
             y_pred = model.forward(X_valid)
 
             valid_loss = loss_fn(y_pred, y_valid)
+            # valid_loss = valid_loss / (seq_length - 1)
             mean_epoch_valid_mse = mean_epoch_valid_mse + mse_measure(y_pred, y_valid)
             mean_epoch_valid_r2 = mean_epoch_valid_r2 + r2_measure(y_pred, y_valid)
             mean_epoch_valid_loss = mean_epoch_valid_loss+ valid_loss.item()
-        valid_losses.append(mean_epoch_valid_loss/total_valid_steps)
-        r2s.append(mean_epoch_valid_r2/total_valid_steps)
-        mses.append(mean_epoch_valid_mse/total_valid_steps)
+        valid_losses.append(mean_epoch_valid_loss/float(total_valid_steps))
+        r2s.append(mean_epoch_valid_r2/float(total_valid_steps))
+        mses.append(mean_epoch_valid_mse/float(total_valid_steps))
 
         scheduler.step(valid_losses[-1])
+
 except Exception as e:
     print("Exiting with exception: ", e)
     # Save the model checkpoint
@@ -122,7 +125,7 @@ except Exception as e:
     torch.save(model.state_dict(), checkpoint_file)
 
 # Save the model checkpoint
-checkpoint_file = "Visibility_LSTMmodel_epoch" + str(epoch) + "_valid_loss" + str(valid_losses[-1]) + ".ckpt"
+checkpoint_file = "NonVisibilitySTD_LSTMmodel_epoch" + str(epoch) + "_valid_loss" + str(valid_losses[-1]) + ".ckpt"
 torch.save(model.state_dict(), checkpoint_file)
 
 fig = plt.figure()
@@ -131,5 +134,6 @@ plt.plot(train_losses, 'r')
 
 fig = plt.figure()
 plt.plot(r2s, 'b')
+fig = plt.figure()
 plt.plot(mses, 'g')
 plt.show()

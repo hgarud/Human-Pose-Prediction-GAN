@@ -80,12 +80,12 @@ class GeneratorLoss(object):
         self.norm = norm
 
         import torch.nn as nn
-        self.directionLoss = DirectionLoss()
+        # self.directionLoss = DirectionLoss()
         self.predLoss = PredictionLoss()
         self.sceLoss = nn.BCEWithLogitsLoss(reduction = 'elementwise_mean')
 
-    def __call__(self, training_input, input, target):
-        return self.lambda_A*self.sceLoss(input, target) + self.lambda_P*self.predLoss.forward(input, target, norm = self.norm)# + self.lambda_D*self.directionLoss.forward(training_input, input, target)
+    def __call__(self, input, target, target_label):
+        return self.lambda_A*self.sceLoss(input, target_label) + self.lambda_P*self.predLoss.forward(input, target, norm = self.norm)# + self.lambda_D*self.directionLoss.forward(training_input, input, target)
 
 class DiscriminatorLoss(object):
     def __call__(self, input, target):
