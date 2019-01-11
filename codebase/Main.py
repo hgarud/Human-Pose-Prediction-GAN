@@ -28,7 +28,7 @@ n_epochs = 200
 alpha = 1e-2
 
 # Load saved Numpy file
-sequences = np.load('All_16SL_26F_Sequences_Standard.npy')
+sequences = np.load('All_16SL_26F_Sequences_MinMax.npy')
 data_len = len(sequences)
 print(sequences.shape)
 np.random.shuffle(sequences)
@@ -125,12 +125,13 @@ except Exception as e:
     torch.save(model.state_dict(), checkpoint_file)
 
 # Save the model checkpoint
-checkpoint_file = "NonVisibilitySTD_LSTMmodel_epoch" + str(epoch) + "_valid_loss" + str(valid_losses[-1]) + ".ckpt"
+checkpoint_file = "NonVisibilityMMX_LSTMmodel_epoch" + str(epoch) + "_valid_loss" + str(valid_losses[-1]) + ".ckpt"
 torch.save(model.state_dict(), checkpoint_file)
 
 fig = plt.figure()
-plt.plot(valid_losses, 'k')
-plt.plot(train_losses, 'r')
+plt.plot(valid_losses, 'k', label = 'validation loss')
+plt.plot(train_losses, 'r', label = 'training loss')
+plt.legend()
 
 fig = plt.figure()
 plt.plot(r2s, 'b')
