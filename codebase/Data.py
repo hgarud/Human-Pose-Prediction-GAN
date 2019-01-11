@@ -75,7 +75,10 @@ class PennActionData(object):
 
         import numpy as np
         file = self.base_dir + file
-        data = loadmat(file)
+        if file.endswith('.mat'):
+            data = loadmat(file)
+        elif file.endswith('.npz'):
+            data = dict(np.load(file))
         if scaling == None:
             return data
         elif scaling == 'standard':
@@ -146,7 +149,7 @@ class PennActionData(object):
         x_scaler_file = "X_scaler.save"
         Y_scaler_file = "Y_scaler.save"
         joblib.dump(self.x_scaler, x_scaler_file)
-        joblib.dump(self.y_scaler, y_scaler_file)
+        joblib.dump(self.y_scaler, Y_scaler_file)
 
     def getJointsData(self, withVisibility=True):
         import pandas as pd
@@ -190,8 +193,8 @@ class PennActionData(object):
     def getSequences(self, seq_length, withVisibility=True):
         """
         For a file with K frames, we generate K sequences by varying
-        the starting frame. We skip frames when generating sequencessince adjacent
-        frames containsimilar poses. The number of frames skipped is video-dependent:
+        the starting frame. We skip frames when generating sequences since adjacent
+        frames contain similar poses. The number of frames skipped is video-dependent:
         Given a sampled starting frame, we always generate a sequence of length 16,
         where we skip every (K − 1) = 15 frames in the raw sequence after the sampled starting frame.
 
@@ -265,9 +268,9 @@ class PennActionData(object):
 
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
-    data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat', scaling = 'standard')
-    print(data_stream.data['x'].shape)
+    data_stream = PennActionData(base_dir = '/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/labels/', file = '0758.npz', scaling = 'standard')
+    print(np.var(data_stream.data['x']))
     # sequences = data_stream.getStridedSequences(seq_length = 16, withVisibility = False)
     # print(sequences.shape)
-    # np.save('All_16SL_26F_Sequences_Standard.npy', sequences)
+    # np.save('All_16SL_26F_Sequences_MinMax.npy', sequences)
     # data_stream.visualize(sequences)
