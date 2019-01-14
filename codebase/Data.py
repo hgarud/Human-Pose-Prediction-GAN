@@ -57,6 +57,7 @@ class PennActionData(object):
         """
         self.base_dir = base_dir
         assert self.base_dir[-1] == '/'
+        self.video_lengths = []
         if file == None:
             self.data = self.__loadAll(scaling)
             self.data_len = len(self.data['x'])
@@ -79,6 +80,9 @@ class PennActionData(object):
             data = loadmat(file)
         elif file.endswith('.npz'):
             data = dict(np.load(file))
+
+        self.video_lengths.append(data['nframes'][0][0])
+
         if scaling == None:
             return data
         elif scaling == 'standard':
@@ -115,9 +119,14 @@ class PennActionData(object):
         print("Fetching Data...")
         for i in tqdm(range(len(files))):
             data = self.__load(files[i])
+
             all_data['x'] = np.concatenate((all_data['x'], data['x']))
             all_data['y'] = np.concatenate((all_data['y'], data['y']))
             all_data['visibility'] = np.concatenate((all_data['visibility'], data['visibility']))
+
+        for i in range(1, len(self.video_lengths)):
+            self.video_lengths[i] = int(self.video_lengths[i]) + int(self.video_lengths[i-1])
+
 
         if scaling == None:
             return all_data
@@ -250,9 +259,12 @@ class PennActionData(object):
 
         import torch
         Jointsdata = self.getJointsData(withVisibility)
-        dict = np.zeros((self.data_len - seq_length, seq_length, Jointsdata.shape[1]))
+        dict = np.empty((0, seq_length, Jointsdata.shape[1]))
         print("Creating sequences...")
-        for i in tqdm(range(0, self.data_len - seq_length, stride)):
+        # for i in tqdm(range(0, self.video_lengths[-1] - seq_length, stride)):
+        i=0
+        pointer = 0
+        while i < self.video_lengths[-1] - seq_length:
             sequence = []
             j = i
             n_frames = 0
@@ -260,7 +272,14 @@ class PennActionData(object):
                 sequence.append(Jointsdata[j:j+1].values.flatten())
                 n_frames += 1
                 j += 1
-            dict[i,:,:] = np.array(sequence, dtype = np.float16)
+            # print(np.array(sequence).shape)
+            dict = np.concatenate((dict, np.array(sequence)[None, :, :]), axis = 0)
+            if i+seq_length == self.video_lengths[pointer]:
+                # i=self.video_lengths[self.video_lengths.index(i+seq_length)]
+                i = self.video_lengths[pointer]
+                pointer += 1
+            else:
+                i+=stride
         return dict
 
     # def inverse_transform(self, scaling='standard'):
@@ -268,9 +287,9 @@ class PennActionData(object):
 
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
-    data_stream = PennActionData(base_dir = '/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/labels/', file = '0758.npz', scaling = 'standard')
+    data_stream = PennActionData(base_dir = '/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/labels/', scaling = 'standard')
     print(np.var(data_stream.data['x']))
-    # sequences = data_stream.getStridedSequences(seq_length = 16, withVisibility = False)
-    # print(sequences.shape)
-    # np.save('All_16SL_26F_Sequences_MinMax.npy', sequences)
+    sequences = data_stream.getStridedSequences(seq_length = 16, withVisibility = False)
+    print(sequences.shape)
+    np.save('Preprocessed_All_16SL_26F_Sequences_standard.npy', sequences)
     # data_stream.visualize(sequences)
