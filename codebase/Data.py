@@ -139,7 +139,6 @@ class PennActionData(object):
             all_data['y'] = self.y_scaler.transform(all_data['y'])
             # all_data['visibility'] = vis_scaler.transform(all_data['visibility'])
 
-            return all_data
         elif scaling == 'minmax':
             self.x_scaler = MinMaxScaler().fit(all_data['x'])
             self.y_scaler = MinMaxScaler().fit(all_data['y'])
@@ -149,9 +148,7 @@ class PennActionData(object):
             all_data['y'] = self.y_scaler.transform(all_data['y'])
             # all_data['visibility'] = vis_scaler.transform(all_data['visibility'])
 
-            self.save_scalers()
-
-            return all_data
+        self.save_scalers()
         return all_data
 
     def save_scalers(self):
