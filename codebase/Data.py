@@ -284,9 +284,9 @@ class PennActionData(object):
 
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
-    data_stream = PennActionData(base_dir = '/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/labels/', scaling = 'standard')
+    data_stream = PennActionData(base_dir = '/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/labels/', scaling = None)
     print(np.var(data_stream.data['x']))
     sequences = data_stream.getStridedSequences(seq_length = 16, withVisibility = False)
-    print(sequences.shape)
-    np.save('Preprocessed_All_16SL_26F_Sequences_standard.npy', sequences)
+    # print(sequences.shape)
+    np.save('Preprocessed_All_16SL_26F_Sequences.npy', sequences)
     # data_stream.visualize(sequences)

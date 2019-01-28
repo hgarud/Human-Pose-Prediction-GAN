@@ -17,7 +17,7 @@ seq_length = 16
 # n_epochs = 200
 # alpha = 1e-2
 
-def visualize(data, scalers, path, count = 5, subset = ''):
+def visualize(data, scalers, path, count = 1, subset = ''):
     data_len = len(data)
     print(data.shape)
     # index = random.randint(0, data_len - count)
@@ -30,12 +30,13 @@ def visualize(data, scalers, path, count = 5, subset = ''):
         sequence[:,13:26] = scalers[1].inverse_transform(sequence[:,13:26])
         for j, frame in enumerate(sequence):
             image = np.zeros((360, 480))
-            print("Frame shape: ", frame.shape)
+            # print("Frame shape: ", frame.shape)
             x_coord = frame[0:13]
             y_coord = frame[13:26]
             # print(x_coord[None,:].shape)
-            # x_coord = scalers[0].inverse_transform(x_coord)
-            # y_coord = scalers[1].inverse_transform(y_coord[None, :])
+            x_coord = scalers[0].inverse_transform(x_coord[None, :])[0]
+            y_coord = scalers[1].inverse_transform(y_coord[None, :])[0]
+            # print(x_coord[None,:].shape)
             fig,ax = plt.subplots(1)
             ax.imshow(image)
             z = zip(x_coord, y_coord)
@@ -47,15 +48,16 @@ def visualize(data, scalers, path, count = 5, subset = ''):
             assert path[-1] == '/'
             image_name = path + subset + "image_{}_{}.png".format(i,j)
             fig.savefig(image_name)
+            plt.cla()
 
 # data_stream = PennActionData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/Penn_Action/labels/', file = '0758.mat')
-x_scaler = joblib.load("/home/hrishi/1Hrishi/0Thesis/Human-Pose-Prediction-GAN/codebase/X_scaler_minmax.save")
-y_scaler = joblib.load("/home/hrishi/1Hrishi/0Thesis/Human-Pose-Prediction-GAN/codebase/Y_scaler_minmax.save")
+x_scaler = joblib.load("/home/hrishi/1Hrishi/0Thesis/Human-Pose-Prediction-GAN/codebase/X_scaler.save")
+y_scaler = joblib.load("/home/hrishi/1Hrishi/0Thesis/Human-Pose-Prediction-GAN/codebase/Y_scaler.save")
 scalers = (x_scaler, y_scaler)
 print(scalers[0].scale_)
 
 # Load saved Numpy file
-sequences = np.load('All_16SL_26F_Sequences_MinMax.npy')
+sequences = np.load('Preprocessed_All_16SL_26F_Sequences_standard.npy')
 data_len = len(sequences)
 print(sequences.shape)
 # np.random.shuffle(sequences)
@@ -85,9 +87,9 @@ input_dim = sequences.shape[-1]         # 26 when withVisibility = False
 
 output_dim = input_dim
 
-batch_size = 6553
+batch_size = 5158
 
-PATH = 'NonVisibilityMMX_LSTMmodel_epoch200_valid_loss0.020739131420850754.ckpt'
+PATH = 'NonVisibilitySTD_LSTMmodel_epoch80_valid_loss0.0008961503219325096.ckpt'
 
 # LSTM
 model = PoseLSTM(input_dim = input_dim, hidden_dim = hidden_dim,

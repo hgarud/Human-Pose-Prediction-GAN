@@ -21,14 +21,14 @@ Set baselines for the prediction task
 device = torch.device('cuda')
 
 # Model Hyper-Parameters
-hidden_dim = 128
-num_layers = 2
+hidden_dim = 64
+num_layers = 3
 seq_length = 16
-n_epochs = 200
-alpha = 1e-2
+n_epochs = 80
+alpha = 1e-5
 
 # Load saved Numpy file
-sequences = np.load('All_16SL_26F_Sequences_MinMax.npy')
+sequences = np.load('Preprocessed_All_16SL_26F_Sequences.npy')
 data_len = len(sequences)
 print(sequences.shape)
 np.random.shuffle(sequences)
@@ -45,7 +45,7 @@ input_dim = sequences.shape[-1]         # 26 when withVisibility = False
 
 output_dim = input_dim
 
-batch_size = 6553
+batch_size = 5158
 total_train_steps = len(train_sequences)/batch_size
 total_valid_steps = len(validation_sequences)/batch_size
 
@@ -58,7 +58,8 @@ model.hidden = model.init_hidden()
 model.cuda()
 
 loss_fn = nn.MSELoss(reduction = 'elementwise_mean')
-optimizer = optim.SGD(model.parameters(), lr = alpha, momentum = 0.9, weight_decay = 0.0001)
+# optimizer = optim.SGD(model.parameters(), lr = alpha, momentum = 0.9, weight_decay = 0.001)
+optimizer = optim.Adam(model.parameters(), lr = alpha)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer = optimizer, mode = 'min', factor = 0.5, patience = 4, verbose = True)
 
 loss = 0
@@ -125,7 +126,7 @@ except Exception as e:
     torch.save(model.state_dict(), checkpoint_file)
 
 # Save the model checkpoint
-checkpoint_file = "NonVisibilityMMX_LSTMmodel_epoch" + str(epoch) + "_valid_loss" + str(valid_losses[-1]) + ".ckpt"
+checkpoint_file = "NonVisibility_LSTMmodel_epoch" + str(epoch) + "_valid_loss" + str(valid_losses[-1]) + ".ckpt"
 torch.save(model.state_dict(), checkpoint_file)
 
 fig = plt.figure()
