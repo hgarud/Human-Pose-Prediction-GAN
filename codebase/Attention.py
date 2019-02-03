@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 from BumbleBee import clones
 
@@ -13,11 +14,11 @@ class MultiHeadedAttention(nn.Module):
         # We assume d_v always equals d_k
         self.d_k = d_model // h
         self.h = h
-        self.linears = clones(nn.Linear(d_model, d_model), 4)
+        self.linears = clones(nn.Linear(d_model, h * self.d_k), 4)
         self.attn = None
         self.dropout = nn.Dropout(p=dropout)
 
-    def attention(query, key, value, mask=None, dropout=None):
+    def attention(self, query, key, value, mask=None, dropout=None):
         """Compute 'Scaled Dot Product Attention'"""
         d_k = query.size(-1)
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
@@ -36,11 +37,11 @@ class MultiHeadedAttention(nn.Module):
         nbatches = query.size(0)
 
         # 1) Do all the linear projections in batch from d_model => h x d_k
-        query, key, value = [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
+        query, key, value = [l(x).view(nbatches, -1, self.h, self.d_k).transpose(1,2)
                                 for l, x in zip(self.linears, (query, key, value))]
 
         # 2) Apply attention on all the projected vectors in batch.
-        x, self.attn = self.attention(query, key, value, mask=mask, dropout=self.dropout)
+        x, self.attn = self.attention(query, key, value, mask, self.dropout)
 
         # 3) "Concat" using a view and apply a final linear.
         x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)

@@ -19,7 +19,7 @@ class EncoderDecoder(nn.Module):
         self.tgt_embed = tgt_embed
         self.generator = generator
 
-    def forward(self, src, tgt, src_mask, tgt_mask):
+    def forward(self, src, tgt, tgt_mask, src_mask=None):
         """Take in and process masked src and target sequences."""
         return self.decode(self.encode(src, src_mask), src_mask,
                             tgt, tgt_mask)
@@ -38,7 +38,7 @@ class Generator(nn.Module):
         self.proj = nn.Linear(d_model, vocab)
 
     def forward(self, x):
-        return F.log_softmax(self.proj(x), dim=-1)
+        return F.relu(self.proj(x))                    # Might play around with the activation
 
 
 class LayerNorm(nn.Module):
