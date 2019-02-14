@@ -9,6 +9,19 @@ from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.externals import joblib
 
+def un_normalize(coord, coord_min, coord_max, bounding_box_length):
+    coord_mid = coord_min + (coord_max - coord_min) / 2.0
+    for i in range(coord.shape[0]):
+        coord[i,:,:] = coord[i,:,:] * (bounding_box_length[i] / 2.0) + coord_mid[i]
+
+    return coord
+
+def un_normalize_2d(data, x_min, x_max, y_min, y_max, bounding_box_length):
+    new_data = data.copy()
+    new_data[:, :, 0:13] = un_normalize(data[:, :, 0:13], x_min, x_max, bounding_box_length)
+    new_data[:, :, 13:26] = un_normalize(data[:, :, 13:26], y_min, y_max, bounding_box_length)
+    return new_data
+
 class MPIIData(object):
     def __init__(self, base_dir):
         self.base_dir = base_dir
@@ -20,7 +33,7 @@ class MPIIData(object):
         return x
 
 class PennActionData(object):
-    def __init__(self, base_dir, file=None, scaling=None):
+    def __init__(self, base_dir, is_train, file=None, scaling=None):
         """
         Penn Action Dataset contains 2326 video sequences of 15 different actions
         and human joint annotation for each sequence.
@@ -58,8 +71,9 @@ class PennActionData(object):
         self.base_dir = base_dir
         assert self.base_dir[-1] == '/'
         self.video_lengths = []
+        self.bBoxParams = []
         if file == None:
-            self.data = self.__loadAll(scaling)
+            self.data = self.__loadAll(is_train, scaling)
             self.data_len = len(self.data['x'])
         else:
             self.file = file
@@ -80,8 +94,6 @@ class PennActionData(object):
             data = loadmat(file)
         elif file.endswith('.npz'):
             data = dict(np.load(file))
-
-        self.video_lengths.append(data['nframes'][0][0])
 
         if scaling == None:
             return data
@@ -107,7 +119,7 @@ class PennActionData(object):
 
             return data
 
-    def __loadAll(self, scaling=None):
+    def __loadAll(self, is_train, scaling=None):
         """
         Private loading function to load data from all MATLAB files.
 
@@ -119,6 +131,20 @@ class PennActionData(object):
         print("Fetching Data...")
         for i in tqdm(range(len(files))):
             data = self.__load(files[i])
+            if (is_train and data['train'] != 1) or (not is_train and data['train'] == 1):
+                continue
+
+            self.video_lengths.append(data['nframes'][0][0])
+
+            x_min, y_min, x_max, y_max = self.getBoundingBox(data['x'], data['y'])
+            bBoxLength = max(x_max - x_min, y_max - y_min) + 1e-8
+
+            # bBoxLengths.append(bBoxLength)
+            bBoxParams = [x_min, y_min, x_max, y_max, bBoxLength]
+            self.bBoxParams.append(bBoxParams)
+
+            data['x'] = self.normalize(data['x'], x_min, x_max, bBoxLength)
+            data['y'] = self.normalize(data['y'], y_min, y_max, bBoxLength)
 
             all_data['x'] = np.concatenate((all_data['x'], data['x']))
             all_data['y'] = np.concatenate((all_data['y'], data['y']))
@@ -150,6 +176,13 @@ class PennActionData(object):
 
         self.save_scalers()
         return all_data
+
+    def getBoundingBox(self, x, y):
+        return np.min(x), np.min(y), np.max(x), np.max(y)
+
+    def normalize(self, coord, coord_min, coord_max, bounding_box_length):
+        coord_mid = coord_min + (coord_max - coord_min) / 2.0
+        return (coord - coord_mid) / (bounding_box_length / 2.0)
 
     def save_scalers(self):
         x_scaler_file = "X_scaler.save"
@@ -257,8 +290,8 @@ class PennActionData(object):
         import torch
         Jointsdata = self.getJointsData(withVisibility)
         dict = np.empty((0, seq_length, Jointsdata.shape[1]))
+        bBoxForSeq = []
         print("Creating sequences...")
-        # for i in tqdm(range(0, self.video_lengths[-1] - seq_length, stride)):
         i=0
         pointer = 0
         while i < self.video_lengths[-1] - seq_length:
@@ -271,22 +304,21 @@ class PennActionData(object):
                 j += 1
             # print(np.array(sequence).shape)
             dict = np.concatenate((dict, np.array(sequence)[None, :, :]), axis = 0)
+            bBoxForSeq.append(self.bBoxParams[pointer])
             if i+seq_length == self.video_lengths[pointer]:
                 # i=self.video_lengths[self.video_lengths.index(i+seq_length)]
                 i = self.video_lengths[pointer]
                 pointer += 1
             else:
                 i+=stride
-        return dict
-
-    # def inverse_transform(self, scaling='standard'):
-    #     print(self.)
+        return dict, bBoxForSeq
 
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
-    data_stream = PennActionData(base_dir = '/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/labels/', scaling = None)
-    print(np.var(data_stream.data['x']))
-    sequences = data_stream.getStridedSequences(seq_length = 16, withVisibility = False)
+    data_stream = PennActionData(base_dir = '/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/labels/', is_train = False, scaling = None)
+    # print(np.var(data_stream.data['x']))
+    sequences, bBoxForSequences = data_stream.getStridedSequences(seq_length = 16, withVisibility = False)
     # print(sequences.shape)
-    np.save('Preprocessed_All_16SL_26F_Sequences.npy', sequences)
+    np.save('Normalized_Test_16SL_26F_Sequences.npy', sequences)
+    np.save('Normalized_Test_BBOX_Params.npy', bBoxForSequences)
     # data_stream.visualize(sequences)
