@@ -38,7 +38,8 @@ class Generator(nn.Module):
         self.proj = nn.Linear(d_model, vocab)
 
     def forward(self, x):
-        return F.relu(self.proj(x))                    # Might play around with the activation
+        # return F.relu(self.proj(x))                    # Might play around with the activation
+        return F.tanh(self.proj(x))                    # Might play around with the activation
 
 
 class LayerNorm(nn.Module):
