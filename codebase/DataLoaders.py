@@ -5,13 +5,13 @@ import cv2
 from torchvision import transforms
 
 class TrainDataset(torch.utils.data.Dataset):
-    def __init__(self, base_dir, data, batch_size, shuffle=True, transform=None):
+    def __init__(self, base_dir, data, batch_size, shuffle=True, transform=None, random_state=None):
         self.base_dir = base_dir
         assert base_dir[-1] == "/"
         if shuffle:
-            np.random.shuffle(data)
+            assert random_state
+            random_state.shuffle(data)
         self.seq_length = data.shape[1]//2
-        print(type(self.seq_length))
         self.batch_size = batch_size
         self.source = data[:, 0:self.seq_length]
         self.target = data[:, self.seq_length:(self.seq_length*2)]
@@ -23,48 +23,83 @@ class TrainDataset(torch.utils.data.Dataset):
 
     def getBatch(self, data, index):
         images = np.zeros((self.batch_size, self.seq_length, 256, 256, 3))
-        batch_sequence = data[index:index+batch_size]
-        self.batch_image_names = []
+        ratios = np.zeros((self.batch_size))
+        batch_sequence = data[index:index+self.batch_size]
         for i, sequence_paths in enumerate(batch_sequence):
             for j, path in enumerate(sequence_paths):
-                # try:
+                try:
                     dir = path[0:4]
                     path = path[5:]
                     im_path = dir+"/"+path
-                    self.batch_image_names.append(im_path)
                     image = cv2.imread(self.base_dir+im_path)
-                    # image = cv2.resize(image, (256, 256), interpolation=cv2.INTER_CUBIC)
-                    image = self.letterbox_image(image, (256, 256))
+                    image, ratio = self.letterbox_image(image, 256)
                     # image = image/255
                     images[i,j,:,:,:] = image
+                    ratios[i] = ratio
                 except Exception as e:
                     print("Exiting with exception: ", e)
                     print(self.base_dir+path)
 
-        return images
+        return images, ratios
 
-    def letterbox_image(self, img, inp_dim):
+    def getSequence(self, data, index):
+        images = np.zeros((self.seq_length, 256, 256, 3))
+        ratio = 0
+        sequence_paths = data[index]
+        for j, path in enumerate(sequence_paths):
+            try:
+                dir = path[0:4]
+                path = path[5:]
+                im_path = dir+"/"+path
+                image = cv2.imread(self.base_dir+im_path)
+                image, ratio = self.letterbox_image(image, 256)
+                # image = image/255
+                images[j,:,:,:] = image
+                ratio = ratio
+            except Exception as e:
+                print("Exiting with exception: ", e)
+                print(self.base_dir+path)
+
+        return images, ratio
+
+
+    def letterbox_image(self, image, desired_size):
         '''resize image with unchanged aspect ratio using padding'''
-        img_w, img_h = img.shape[1], img.shape[0]
-        w, h = inp_dim
-        new_w = int(img_w * min(w / img_w, h / img_h))
-        new_h = int(img_h * min(w / img_w, h / img_h))
-        resized_image = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
 
-        canvas = np.full((inp_dim[1], inp_dim[0], 3), 128)
+        old_size = image.shape[:2]
+        ratio = float(desired_size)/max(old_size)
+        new_size = tuple([int(x*ratio) for x in old_size])
 
-        canvas[(h - new_h) // 2:(h - new_h) // 2 + new_h, (w - new_w) // 2:(w - new_w) // 2 + new_w, :] = resized_image
+        image = cv2.resize(image, (new_size[1], new_size[0]))
 
-        return canvas
+        delta_w = desired_size - new_size[1]
+        delta_h = desired_size - new_size[0]
 
+        # top, bottom = delta_h//2, delta_h-(delta_h//2)
+        # left, right = delta_w//2, delta_w-(delta_w//2)
+        top, bottom = 0, delta_h
+        left, right = 0, delta_w
+
+        color = [0, 0, 0]
+        image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT,
+            value=color)
+        # cv2.imshow('image', image)
+        # cv2.waitKey(0)
+        return image, ratio
 
     def __getitem__(self, index):
-        source_batch = self.getBatch(self.source, index)
-        target_batch = self.getBatch(self.target, index)
+        # source_batch, source_ratios = self.getBatch(self.source, index)
+        # target_batch, target_ratios = self.getBatch(self.target, index)
 
-        sample = {'source':source_batch, 'target':target_batch, 'image_paths':self.batch_image_names}
+        source_sequence, source_ratio = self.getSequence(self.source, index)
+        target_sequence, target_ratio = self.getSequence(self.target, index)
+        # sample = {'source':source_batch, 'target':target_batch, 'image_paths':self.batch_image_names}
+        sample = {'source':source_sequence, 'target':target_sequence}
         if self.transform:
-            sample = self.transform(sample)
+            source_sequence, target_sequence = self.transform(sample)
+
+        sample = {'source':source_sequence, 'target':target_sequence, 'source_ratios':source_ratio,
+                    'target_ratios':target_ratio}
         return sample
 
 class ToTensor(object):
@@ -76,10 +111,9 @@ class ToTensor(object):
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
-        source = source.transpose((0, 1, 4, 2, 3))
-        target = target.transpose((0, 1, 4, 2, 3))
-        return {'source': torch.from_numpy(source),
-                'target': torch.from_numpy(target)}
+        source = source.transpose((0, 3, 1, 2))
+        target = target.transpose((0, 3, 1, 2))
+        return torch.from_numpy(source), torch.from_numpy(target)
 
 
 if __name__ == '__main__':
@@ -90,13 +124,16 @@ if __name__ == '__main__':
                         base_dir = "/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/frames/",
                         data = sequences,
                         batch_size = batch_size,
-                        shuffle = True,
+                        shuffle = False,
                         transform=transforms.Compose([ToTensor()])
                         )
 
-    for i, batch in enumerate(train_loader):
+
+    dataloader = torch.utils.data.DataLoader(train_loader, batch_size=batch_size,
+                        shuffle=True, num_workers=1)
+
+    for i, batch in enumerate(dataloader):
         print(i)
-        # src_seq, src_pos, tgt_seq, tgt_pos = map(lambda x: x.cuda(), batch)
         print(len(batch))
         print(batch['source'].shape)
         break
