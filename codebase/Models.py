@@ -8,7 +8,7 @@ class PoseLSTM(nn.Module):
     Also used as a base class for adversarial R-GAN
     """
 
-    def __init__(self, input_dim = 39, hidden_dim = 26, batch_size = 32, output_dim = 39, num_layers =1):
+    def __init__(self, input_dim = 39, hidden_dim = 26, batch_size = 32, output_dim = 39, num_layers = 1, dropout = 0.0):
         """ Constructor
         Args:
             input_dim: The number of expected features in the input
@@ -31,7 +31,9 @@ class PoseLSTM(nn.Module):
         self.num_layers = num_layers
 
         # Define the LSTM architecture
-        self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers, batch_first = True)
+        self.lstm = nn.LSTM(self.input_dim, self.hidden_dim, self.num_layers, dropout = dropout, batch_first = True)
+
+        self.dropout = nn.Dropout(p=dropout)
         # Define the output layer
         self.decoder = nn.Linear(self.hidden_dim, self.output_dim)
 
@@ -46,7 +48,7 @@ class PoseLSTM(nn.Module):
             input: input 3-D tensor with shape [batch_size, seq_length, features]
         """
         lstm_output, self.hidden = self.lstm(inputs, self.hidden)
-        y_pred = self.decoder(lstm_output.view((self.batch_size, -1, self.hidden_dim)))
+        y_pred = self.decoder(self.dropout(lstm_output.view((self.batch_size, -1, self.hidden_dim))))
         self.hidden = self.repackage_hidden()
         return y_pred.view((self.batch_size, -1, self.output_dim))
 

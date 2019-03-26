@@ -45,7 +45,7 @@ class EncoderBasicBlock(nn.Module):
 
 class EncoderResNet(nn.Module):
 
-    def __init__(self, block, layers, sample_size=0, sample_duration=0):
+    def __init__(self, block, layers, latent_dim, sample_size=0, sample_duration=0):
 
         self.inplanes = 64
         super(EncoderResNet, self).__init__()
@@ -63,8 +63,8 @@ class EncoderResNet(nn.Module):
         self.maxgpool2 = nn.MaxPool2d(kernel_size=(4, 4), stride=1, return_indices=True)
         # self.fc = nn.Linear(, num_classes)
 
-        self.fc1 = nn.Linear(12800, 2)
-        self.fc2 = nn.Linear(12800, 2)
+        self.fc1 = nn.Linear(12800, latent_dim)
+        self.fc2 = nn.Linear(12800, latent_dim)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -147,7 +147,7 @@ class DecoderBasicBlock(nn.Module):
 
 class DecoderResNet(nn.Module):
 
-    def __init__(self, block, layers, sample_size=0, sample_duration=0):
+    def __init__(self, block, layers, latent_dim, sample_size=0, sample_duration=0):
         # self.inplanes = 512
         # self.indices = indices
         super(DecoderResNet, self).__init__()
@@ -231,8 +231,8 @@ if __name__ == '__main__':
         # https://arxiv.org/abs/1312.6114
         # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        print("BCE: ", BCE)
-        print("KLD: ", KLD)
+        # print("BCE: ", BCE)
+        # print("KLD: ", KLD)
         return BCE + KLD
 
     batch_size = 32
@@ -253,11 +253,6 @@ if __name__ == '__main__':
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer = optimizer, mode = 'min', factor = 0.5, patience = 50, verbose = True)
     # out = decoder.forward(out)
     # x = torch.rand(32, 3, 256, 256).cuda()
-    # print(out.shape)
-    # print(indices)
-    # print(out.shape)
-
-
 
     train_losses = []
     try:
@@ -290,7 +285,6 @@ if __name__ == '__main__':
             scheduler.step(train_losses[-1])
     except Exception as e:
         print("Exiting with exception: ", e)
-    # print()
 
     fig = plt.figure()
     plt.plot(train_losses, 'k')

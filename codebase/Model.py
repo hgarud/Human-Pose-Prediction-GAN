@@ -36,7 +36,7 @@ class Embeddings(nn.Module):
         self.d_model = d_model
 
     def forward(self, x):
-        emb = self.lut(x)                                   # b_s, seq_length, d_model
+        emb = F.tanh(self.lut(x))                                   # b_s, seq_length, d_model
         sqrt = math.sqrt(self.d_model)
         emb = torch.mul(emb, sqrt)
         return emb
@@ -62,7 +62,7 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-def make_model(src_vocab, tgt_vocab, N=6, d_model=512, d_ff=2048, h=8, dropout=0.0):
+def make_model(src_vocab, tgt_vocab, N=6, d_model=512, d_ff=2048, h=8, dropout=0.1):
     """Helper: Construct a model from hyperparameters."""
     c = copy.deepcopy
     attn = MultiHeadedAttention(h, d_model)
@@ -87,58 +87,49 @@ def make_model(src_vocab, tgt_vocab, N=6, d_model=512, d_ff=2048, h=8, dropout=0
 def data_gen(sequences, batch_size, nbatches):
     "Generate random data for a src-tgt copy task."
     for i in range(nbatches):
-        # data = torch.from_numpy(np.random.randint(1, V, size=(batch, 10)))
-        data = torch.from_numpy(sequences[0:batch_size, :, :])
-        # data[:, 0] = 1
-        src = Variable(data[:, :-1, :].cuda(), requires_grad=False)
-        tgt = Variable(data[:, 1:, :].cuda(), requires_grad=False)
+        data = torch.from_numpy(sequences[i:i+batch_size, :, :])
+        src = Variable(data[:, :8, :].cuda(), requires_grad=False)
+        tgt = Variable(data[:, 8:, :].cuda(), requires_grad=False)
         yield Batch(src, tgt)
 
 
 if __name__ == '__main__':
 
     # Load saved Numpy file
-    sequences = np.load('/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Preprocessed_All_16SL_26F_Sequences.npy')
-    data_len = len(sequences)
-    print(sequences.shape)
+    sequences = np.load('Normalized_Train_16SL_26F_Sequences.npy')
+    data_len = len(sequences)                       # 68672
     np.random.shuffle(sequences)
 
     input_dim = sequences.shape[-1]
     output_dim = input_dim
-    batch_size = 97
+    batch_size = 64
     total_train_steps = data_len//batch_size
 
-    model = make_model(src_vocab=input_dim, tgt_vocab=output_dim, N=2)
+    model = make_model(src_vocab=input_dim, tgt_vocab=output_dim, N=2, d_model=512, d_ff=2048, h=8, dropout=0.1)
     model.train()
     model.double().cuda()
 
-    model_opt = NoamOpt(model.src_embed[0].d_model, 1, 4000,
+    model_opt = NoamOpt(model.src_embed[0].d_model, 1, 3000,
         torch.optim.Adam(model.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9))
 
-    criterion = LabelSmoothing(size=output_dim, smoothing=0.0)
-    criterion.cuda()
-
-    loss_compute = SimpleLossCompute(model.generator, criterion, model_opt)
+    # loss_compute = SimpleLossCompute(model.generator, criterion, model_opt)
     mse_loss_fn = nn.MSELoss()
-    # train_loader =  torch.utils.data.DataLoader(TrainDataset(
-    #                     base_dir = "/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/frames/",
-    #                     data = sequences,
-    #                     batch_size = batch_size,
-    #                     shuffle = True))
 
 
-    n_epochs = 5
 
-    losses = []
+    n_epochs = 6
+
+    train_losses = []
+    # valid_losses = []
+    print("Training for {} epochs...".format(n_epochs))
     for epoch in range(n_epochs):
         for batch_index, batch in enumerate(data_gen(sequences, batch_size=batch_size, nbatches=total_train_steps)):
-            # print(batch.src.shape)
             model.zero_grad()
             out = model.forward(batch.src, batch.trg, batch.trg_mask)
             # print("#######################################", out.shape)
             out = model.generator(out)
             loss = mse_loss_fn(out, batch.trg)
-            losses.append(loss.item())
+            train_losses.append(loss.item())
             print("Loss over {} sequences: {} for step {}/{} @ epoch #{}/{}".format(data_len,
                                     loss, batch_index,
                                     total_train_steps, epoch, n_epochs))
@@ -147,8 +138,8 @@ if __name__ == '__main__':
             model_opt.step()
 
     fig = plt.figure()
-    plt.plot(losses, 'k')
+    plt.plot(train_losses, 'r', label = 'training loss')
     plt.show()
 
-    checkpoint_file = "Transformer_loss_" + str(losses[-1]) + ".ckpt"
+    checkpoint_file = "Transformer_loss_" + str(train_losses[-1]) + ".ckpt"
     torch.save(model.state_dict(), checkpoint_file)
