@@ -33,7 +33,7 @@ class MPIIData(object):
         return x
 
 class PennActionData(object):
-    def __init__(self, base_dir, is_train, file=None, scaling=None):
+    def __init__(self, base_dir, is_train=None, file=None, scaling=None):
         """
         Penn Action Dataset contains 2326 video sequences of 15 different actions
         and human joint annotation for each sequence.
@@ -128,19 +128,26 @@ class PennActionData(object):
         """
         files = sorted(os.listdir(self.base_dir))
         all_data = defaultdict(lambda : np.empty((0,13)))
+        scale_ratios = np.load('Preprocessed_Train_Frame_Scale_Ratio_NoBenchPress.npy')
         print("Fetching Data...")
+        pointer = 0
         for i in tqdm(range(len(files))):
             data = self.__load(files[i])
-            if (is_train and data['train'] != 1) or (not is_train and data['train'] == 1):
+            if (is_train and data['train'] != 1) or (not is_train and data['train'] == 1) or data['action'] == "bench_press":
                 continue
 
             self.video_lengths.append(data['nframes'][0][0])
+
+            data['x'] = data['x'] * scale_ratios[pointer]
+            data['y'] = data['y'] * scale_ratios[pointer]
+            pointer+=1
 
             x_min, y_min, x_max, y_max = self.getBoundingBox(data['x'], data['y'])
             bBoxLength = max(x_max - x_min, y_max - y_min) + 1e-8
 
             # bBoxLengths.append(bBoxLength)
             bBoxParams = [x_min, y_min, x_max, y_max, bBoxLength]
+            # for _ in range(data['nframes'][0][0]):
             self.bBoxParams.append(bBoxParams)
 
             data['x'] = self.normalize(data['x'], x_min, x_max, bBoxLength)
@@ -294,7 +301,7 @@ class PennActionData(object):
         print("Creating sequences...")
         i=0
         pointer = 0
-        while i < self.video_lengths[-1] - seq_length:
+        while i < self.video_lengths[-1] - seq_length + 1:
             sequence = []
             j = i
             n_frames = 0
@@ -315,10 +322,10 @@ class PennActionData(object):
 
 if __name__ == '__main__':
     # x = MPIIData(base_dir = '/home/hrishi/1Hrishi/0Thesis/Data/').load(file = 'mpii_human_pose_v1_u12_1.mat')['RELEASE']
-    data_stream = PennActionData(base_dir = '/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/labels/', is_train = False, scaling = None)
+    data_stream = PennActionData(base_dir = '/media/hrishi/OS/1Hrishi/1Cheese/0Thesis/Data/Penn_Action/preprocessed/labels/', is_train = True, scaling = None)
     # print(np.var(data_stream.data['x']))
     sequences, bBoxForSequences = data_stream.getStridedSequences(seq_length = 16, withVisibility = False)
     # print(sequences.shape)
-    np.save('Normalized_Test_16SL_26F_Sequences.npy', sequences)
-    np.save('Normalized_Test_BBOX_Params.npy', bBoxForSequences)
+    # np.save('Normalized_Test_16SL_26F_Sequences.npy', sequences)
+    # np.save('Normalized_Test_BBOX_Params.npy', bBoxForSequences)
     # data_stream.visualize(sequences)
